@@ -9,6 +9,7 @@ Output files:
     SJF.txt
 '''
 import sys
+import copy
 
 input_file = 'input.txt'
 
@@ -18,10 +19,13 @@ class Process:
         self.id = id
         self.arrive_time = arrive_time
         self.burst_time = burst_time
+        self.remaining = burst_time
     #for printing purpose
     def __repr__(self):
-        return ('[id %d : arrive_time %d,  burst_time %d]'%(self.id, self.arrive_time, self.burst_time))
-
+        return ('[id %d : arrive_time %d,  burst_time %d, remaining_time %d]'%(self.id, self.arrive_time, self.burst_time, self.remaining))
+    def __lt__(self, other):
+        return self.remaining < other.remaining
+    
 def FCFS_scheduling(process_list):
     #store the (switching time, proccess_id) pair
     schedule = []
@@ -44,13 +48,14 @@ def RR_scheduling(process_list, time_quantum ):
     current_time = 0
     waiting_time = 0
     completed = False
-    lifetime = [x.burst_time for x in process_list]
+    processes = copy.deepcopy(process_list)
+    running_id = -1
     
     while not completed:
         completed = True
-        for idx, process in enumerate(process_list):
+        for process in processes:
             # skip completed process
-            if process.burst_time <= 0:
+            if process.remaining <= 0:
                 continue
             
             if current_time < process.arrive_time:
@@ -60,24 +65,70 @@ def RR_scheduling(process_list, time_quantum ):
                 else:
                     # move to the first future process
                     current_time = process.arrive_time
-                
-            schedule.append((current_time,process.id))   
+             
+            if (running_id != process.id):
+                schedule.append((current_time,process.id))
+                running_id = process.id
             
-            if process.burst_time > time_quantum:
+            if process.remaining > time_quantum:
                 current_time = current_time + time_quantum
-                process.burst_time = process.burst_time - time_quantum
+                process.remaining = process.remaining - time_quantum
                 completed = False
             else:
                 # process is completed within this time quantum
-                current_time = current_time + process.burst_time
-                waiting_time = waiting_time + current_time - process.arrive_time - lifetime[idx]
-                process.burst_time = 0
+                current_time = current_time + process.remaining
+                waiting_time = waiting_time + current_time - process.arrive_time - process.burst_time
+                process.remaining = 0
     
-    average_waiting_time = waiting_time/float(len(process_list))
+    average_waiting_time = waiting_time/float(len(processes))
     return schedule, average_waiting_time
 
 def SRTF_scheduling(process_list):
-    return (["to be completed, scheduling process_list on SRTF, using process.burst_time to calculate the remaining time of the current process "], 0.0)
+    import bisect
+    
+    schedule = []
+    working = []
+    pending = copy.deepcopy(process_list)
+    current_time = 0
+    waiting_time = 0
+    running_id = -1
+    
+    while working or pending:
+        # add arrived process
+        if pending:
+            # move processes from pending to working
+            for process in pending:
+                if process.arrive_time == current_time:
+                    bisect.insort(working, process)
+                else:
+                    break
+            pending = [p for p in pending if p.arrive_time > current_time]
+         
+        if working:
+            # run the front process in the working queue
+            if working[0].id != running_id:
+                schedule.append((current_time,working[0].id))
+                running_id = working[0].id
+            
+            run_time = working[0].remaining
+            if pending:
+                run_time = min(run_time, pending[0].arrive_time - current_time)
+            
+            current_time = current_time + run_time
+            working[0].remaining = working[0].remaining - run_time
+            
+            if working[0].remaining <= 0:
+                # completed
+                waiting_time = waiting_time + current_time - working[0].arrive_time - working[0].burst_time
+                working.pop(0)       
+        elif pending:
+            # no process in working queue
+            current_time = pending[0].arrive_time
+        else:
+            raise Exception('Unexpected case')
+    
+    average_waiting_time = waiting_time/float(len(process_list))
+    return schedule, average_waiting_time
 
 def SJF_scheduling(process_list, alpha):
     return (["to be completed, scheduling SJF without using information from process.burst_time"],0.0)
