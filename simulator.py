@@ -1,5 +1,7 @@
 '''
 CS5250 Assignment 4, Scheduling policies simulator
+Author: Minh Ho
+Author: Qijia Wang
 Input file:
     input.txt
 Output files:
@@ -130,8 +132,44 @@ def SRTF_scheduling(process_list):
     average_waiting_time = waiting_time/float(len(process_list))
     return schedule, average_waiting_time
 
+# SJF with predition
 def SJF_scheduling(process_list, alpha):
-    return (["to be completed, scheduling SJF without using information from process.burst_time"],0.0)
+    INIT_PREDICTION = 5
+    
+    predictions = {p.id:INIT_PREDICTION for p in process_list}
+    
+    schedule = []
+    current_time = 0
+    waiting_time = 0
+    
+    pending = []
+    idx = 0
+    
+    while idx < len(process_list) or pending:
+        # add arrived processes to pending
+        while idx < len(process_list) and process_list[idx].arrive_time <= current_time:
+            pending.append(process_list[idx])
+            idx = idx + 1
+
+        # pick one process from pending
+        if pending:
+            shortest = pending[0]
+            for process in pending:
+                if predictions[process.id] < predictions[shortest.id]:
+                    shortest = process
+           
+            schedule.append((current_time,shortest.id))
+            waiting_time = waiting_time + current_time - shortest.arrive_time
+            current_time = current_time + shortest.burst_time
+            predictions[shortest.id] = predictions[shortest.id] * (1 - alpha) + shortest.burst_time * alpha
+            pending.remove(shortest)
+        elif idx < len(process_list):
+            current_time = process_list[idx].arrive_time
+        else:
+            raise Exception('Unexpected case')
+            
+    average_waiting_time = waiting_time/float(len(process_list))
+    return schedule, average_waiting_time
 
 
 def read_input():
