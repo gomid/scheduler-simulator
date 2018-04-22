@@ -1,7 +1,5 @@
 '''
 CS5250 Assignment 4, Scheduling policies simulator
-Sample skeleton program
-Author: Minh Ho
 Input file:
     input.txt
 Output files:
@@ -9,14 +7,6 @@ Output files:
     RR.txt
     SRTF.txt
     SJF.txt
-
-Apr 10th Revision 1:
-    Update FCFS implementation, fixed the bug when there are idle time slices between processes
-    Thanks Huang Lung-Chen for pointing out
-Revision 2:
-    Change requirement for future_prediction SRTF => future_prediction shortest job first(SJF), the simpler non-preemptive version.
-    Let initial guess = 5 time units.
-    Thanks Lee Wei Ping for trying and pointing out the difficulty & ambiguity with future_prediction SRTF.
 '''
 import sys
 
@@ -50,7 +40,41 @@ def FCFS_scheduling(process_list):
 #Output_1 : Schedule list contains pairs of (time_stamp, proccess_id) indicating the time switching to that proccess_id
 #Output_2 : Average Waiting Time
 def RR_scheduling(process_list, time_quantum ):
-    return (["to be completed, scheduling process_list on round robin policy with time_quantum"], 0.0)
+    schedule = []
+    current_time = 0
+    waiting_time = 0
+    completed = False
+    lifetime = [x.burst_time for x in process_list]
+    
+    while not completed:
+        completed = True
+        for idx, process in enumerate(process_list):
+            # skip completed process
+            if process.burst_time <= 0:
+                continue
+            
+            if current_time < process.arrive_time:
+                # uncompleted process exists in front
+                if not completed:
+                    continue
+                else:
+                    # move to the first future process
+                    current_time = process.arrive_time
+                
+            schedule.append((current_time,process.id))   
+            
+            if process.burst_time > time_quantum:
+                current_time = current_time + time_quantum
+                process.burst_time = process.burst_time - time_quantum
+                completed = False
+            else:
+                # process is completed within this time quantum
+                current_time = current_time + process.burst_time
+                waiting_time = waiting_time + current_time - process.arrive_time - lifetime[idx]
+                process.burst_time = 0
+    
+    average_waiting_time = waiting_time/float(len(process_list))
+    return schedule, average_waiting_time
 
 def SRTF_scheduling(process_list):
     return (["to be completed, scheduling process_list on SRTF, using process.burst_time to calculate the remaining time of the current process "], 0.0)
