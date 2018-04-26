@@ -13,10 +13,7 @@ Output files:
 import sys
 import copy
 
-input_file = 'input.txt'
-
 class Process:
-    last_scheduled_time = 0
     def __init__(self, id, arrive_time, burst_time):
         self.id = id
         self.arrive_time = arrive_time
@@ -26,6 +23,8 @@ class Process:
     def __repr__(self):
         return ('[id %d : arrive_time %d,  burst_time %d, remaining_time %d]'%(self.id, self.arrive_time, self.burst_time, self.remaining))
     def __lt__(self, other):
+        if self.id == other.id:
+            return self.arrive_time < other.arrive_time
         return self.remaining < other.remaining
     
 def FCFS_scheduling(process_list):
@@ -51,8 +50,7 @@ def RR_scheduling(process_list, time_quantum ):
     waiting_time = 0
     completed = False
     processes = copy.deepcopy(process_list)
-    running_id = -1
-    
+    run_id = -1
     while not completed:
         completed = True
         for process in processes:
@@ -67,10 +65,9 @@ def RR_scheduling(process_list, time_quantum ):
                 else:
                     # move to the first future process
                     current_time = process.arrive_time
-             
-            if (running_id != process.id):
+            if (run_id != process.id): 
                 schedule.append((current_time,process.id))
-                running_id = process.id
+                run_id = process.id
             
             if process.remaining > time_quantum:
                 current_time = current_time + time_quantum
@@ -89,43 +86,43 @@ def SRTF_scheduling(process_list):
     import bisect
     
     schedule = []
-    working = []
-    pending = copy.deepcopy(process_list)
+    pending = []
+    processes = copy.deepcopy(process_list)
     current_time = 0
     waiting_time = 0
     running_id = -1
     
-    while working or pending:
+    while pending or processes:
         # add arrived process
-        if pending:
-            # move processes from pending to working
-            for process in pending:
+        if processes:
+            # move processes to pending queue
+            for process in processes:
                 if process.arrive_time == current_time:
-                    bisect.insort(working, process)
+                    bisect.insort(pending, process)
                 else:
                     break
-            pending = [p for p in pending if p.arrive_time > current_time]
+            processes = [p for p in processes if p.arrive_time > current_time]
          
-        if working:
+        if pending:
             # run the front process in the working queue
-            if working[0].id != running_id:
-                schedule.append((current_time,working[0].id))
-                running_id = working[0].id
+            if pending[0].id != running_id:
+                schedule.append((current_time,pending[0].id))
+                running_id = pending[0].id
             
-            run_time = working[0].remaining
-            if pending:
-                run_time = min(run_time, pending[0].arrive_time - current_time)
+            run_time = pending[0].remaining
+            if processes:
+                run_time = min(run_time, processes[0].arrive_time - current_time)
             
             current_time = current_time + run_time
-            working[0].remaining = working[0].remaining - run_time
+            pending[0].remaining = pending[0].remaining - run_time
             
-            if working[0].remaining <= 0:
+            if pending[0].remaining <= 0:
                 # completed
-                waiting_time = waiting_time + current_time - working[0].arrive_time - working[0].burst_time
-                working.pop(0)       
-        elif pending:
+                waiting_time = waiting_time + current_time - pending[0].arrive_time - pending[0].burst_time
+                pending.pop(0)       
+        elif processes:
             # no process in working queue
-            current_time = pending[0].arrive_time
+            current_time = processes[0].arrive_time
         else:
             raise Exception('Unexpected case')
     
@@ -135,13 +132,11 @@ def SRTF_scheduling(process_list):
 # SJF with predition
 def SJF_scheduling(process_list, alpha):
     INIT_PREDICTION = 5
-    
     predictions = {p.id:INIT_PREDICTION for p in process_list}
     
     schedule = []
     current_time = 0
     waiting_time = 0
-    
     pending = []
     idx = 0
     
@@ -151,8 +146,8 @@ def SJF_scheduling(process_list, alpha):
             pending.append(process_list[idx])
             idx = idx + 1
 
-        # pick one process from pending
         if pending:
+            # pick one process from pending
             shortest = pending[0]
             for process in pending:
                 if predictions[process.id] < predictions[shortest.id]:
@@ -172,7 +167,7 @@ def SJF_scheduling(process_list, alpha):
     return schedule, average_waiting_time
 
 
-def read_input():
+def read_input(input_file):
     result = []
     with open(input_file) as f:
         for line in f:
@@ -189,8 +184,9 @@ def write_output(file_name, schedule, avg_waiting_time):
         f.write('average waiting time %.2f \n'%(avg_waiting_time))
 
 
-def main(argv):
-    process_list = read_input()
+def task_1():
+    input_file = 'input.txt'
+    process_list = read_input(input_file)
     print ("printing input ----")
     for process in process_list:
         print (process)
@@ -206,6 +202,34 @@ def main(argv):
     print ("simulating SJF ----")
     SJF_schedule, SJF_avg_waiting_time =  SJF_scheduling(process_list, alpha = 0.5)
     write_output('SJF.txt', SJF_schedule, SJF_avg_waiting_time )
+    
+
+def task_2():
+    input_file = 'input2.txt'
+    process_list = read_input(input_file)
+    print ("printing input ----")
+    for process in process_list:
+        print (process)
+    print ("simulating RR ----")
+    RR_schedule, RR_avg_waiting_time =  RR_scheduling(process_list, 2)
+    write_output('RR2.txt', RR_schedule, RR_avg_waiting_time )
+    print ("simulating SJF ----")
+    SJF_schedule, SJF_avg_waiting_time =  SJF_scheduling(process_list, 0.5)
+    write_output('SJF2.txt', SJF_schedule, SJF_avg_waiting_time )
+
+    for quantum in range(1, 13, 1):
+        _, RR_avg_waiting_time =  RR_scheduling(process_list, quantum)
+        with open('RR_quantum.csv', 'a') as f:
+            f.write('%d,%.2f\n'%(quantum, RR_avg_waiting_time))
+    for i in range(1, 10, 1):
+        _, SJF_avg_waiting_time =  SJF_scheduling(process_list, i*0.1)
+        with open('SJF_alpha.csv', 'a') as f:
+            f.write('%f,%.2f\n'%(i*0.1, SJF_avg_waiting_time))
+
+
+def main(argv):
+    task_2()
+    
 
 if __name__ == '__main__':
     main(sys.argv[1:])
